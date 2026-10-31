@@ -165,14 +165,16 @@ def leer_feed(clave, z, desde):
                        "letrero": v["letrero"], "paradas": ps})
     return paradas, rutas, salida
 
-def filtrar_alsa(paradas, viajes):
+def filtrar_alsa(paradas, viajes, cuenta):
     quedan = []
     for v in viajes:
         pos = [paradas[s][1:] for s, _ in v["paradas"]]
         if all(dentro(ASTURIAS, *p) for p in pos):
-            quedan.append(v)
+            quedan.append(v); cuenta["alsa_asturias"] += 1
         elif any(dentro(OVIEDO, *p) for p in pos) and any(dentro(MADRID, *p) for p in pos):
-            quedan.append(v)
+            quedan.append(v); cuenta["alsa_oviedo_madrid"] += 1
+        elif any(dentro(ASTURIAS, *p) for p in pos):
+            cuenta["alsa_descartados_que_pasan_por_asturias"] += 1
     return quedan
 
 # ---------- unificar paradas de las dos fuentes ----------
@@ -223,6 +225,7 @@ def main():
     clave_api = os.environ.get("NAP_API_KEY", "").strip()
 
     todas_paradas, todas_rutas, todos_viajes, avisos, resumen = {}, {}, [], [], {}
+    cuenta = Counter()
     for clave, info in FUENTES.items():
         try:
             if clave in locales:
@@ -236,7 +239,8 @@ def main():
             paradas, rutas, viajes = leer_feed(clave, z, desde)
             total = len(viajes)
             if clave == "alsa":
-                viajes = filtrar_alsa(paradas, viajes)
+                cuenta["alsa_total"] = total
+                viajes = filtrar_alsa(paradas, viajes, cuenta)
             print(f"  {info['nombre']}: {len(viajes)} de {total} viajes con servicio", flush=True)
             resumen[clave] = len(viajes)
             for k, v in paradas.items():
@@ -287,10 +291,13 @@ def main():
         stops = tuple(g for g, _ in secuencia)
         desfases = tuple(t - inicio for _, t in secuencia)
         clave_dup = (stops[0], stops[-1], inicio, inicio + desfases[-1])
-        previo = vistos.get(clave_dup)
-        if previo is not None and (v["mascara"] & ~previo) == 0:
-            continue  # ya está el mismo viaje en otra fuente
-        vistos[clave_dup] = (previo or 0) | v["mascara"]
+        # solo se descartan duplicados entre fuentes: dentro de una misma fuente, cada viaje cuenta
+        previo = vistos.get((clave_dup, "otra"))
+        if v["fuente"] != "cta" and previo is not None and (v["mascara"] & ~previo) == 0:
+            cuenta["duplicados_quitados"] += 1
+            continue  # ya está el mismo viaje en el Consorcio
+        if v["fuente"] == "cta":
+            vistos[(clave_dup, "otra")] = (previo or 0) | v["mascara"]
         kl = (r["corto"], r["largo"], r["operador"])
         if kl not in idx_linea:
             idx_linea[kl] = len(lineas_out)
@@ -318,7 +325,7 @@ def main():
     with open(os.path.join(args.salida, "horarios.json"), "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False, separators=(",", ":"))
     with open(os.path.join(args.salida, "resumen.json"), "w", encoding="utf-8") as f:
-        json.dump({"generado": datos["generado"], "viajes_por_fuente": resumen, "avisos": avisos,
+        json.dump({"generado": datos["generado"], "viajes_por_fuente": resumen, "detalle": dict(cuenta), "avisos": avisos,
                    "paradas": len(paradas_out), "lineas": len(lineas_out),
                    "patrones": len(patrones_out), "viajes": len(viajes_out)}, f, ensure_ascii=False, indent=1)
     print(f"Listo: {len(paradas_out)} paradas, {len(lineas_out)} líneas, {len(viajes_out)} viajes.")
