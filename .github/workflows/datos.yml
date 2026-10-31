@@ -1,0 +1,56 @@
+# Autobuses Asturias · cada noche descarga del NAP los horarios del Consorcio de
+# Transportes de Asturias y de ALSA, genera datos/horarios.json y publica la web.
+# Requisitos (Settings del repositorio):
+#   - Pages → Source: "GitHub Actions"
+#   - Secrets and variables → Actions → secreto NAP_API_KEY con tu clave del NAP
+
+name: Actualizar horarios de autobús
+
+on:
+  schedule:
+    - cron: "52 1 * * *"   # cada noche, hacia las 02:52 (hora peninsular en invierno)
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Copiar la web
+        run: |
+          mkdir -p _site
+          rsync -a --exclude='.*' --exclude='_site' --exclude='scripts' --exclude='datos' ./ _site/
+
+      - name: Descargar horarios del NAP y generar datos
+        env:
+          NAP_API_KEY: ${{ secrets.NAP_API_KEY }}
+        run: python3 scripts/generar.py _site/datos
+
+      - name: Resumen
+        run: cat _site/datos/resumen.json >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

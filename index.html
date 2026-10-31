@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Autobuses Asturias</title>
+<meta name="description" content="Horarios de autobús interurbano en Asturias (Consorcio y ALSA) y Oviedo–Madrid.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Autobuses">
+<meta name="theme-color" content="#eef1ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101814" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icono-180.png">
+<link rel="icon" type="image/png" href="icono-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#eef1ec; --panel:#ffffff; --sunk:#e3e8e1; --fg:#16221c; --muted:#5f6d65; --line:#d3dad1;
+  --prau:#1f5c45; --prau-soft:#d9e8df; --mar:#2c5d78; --faro:#d9951b; --faro-soft:#fbefd6; --pasado:#9aa59e;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#101814; --panel:#18221d; --sunk:#0c130f; --fg:#e9eeea; --muted:#97a59c; --line:#26332c;
+  --prau:#63c194; --prau-soft:#1d3229; --mar:#7fb4d1; --faro:#f2bc4a; --faro-soft:#352a12; --pasado:#5b6860;
+  color-scheme:dark;}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--body);
+  padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--prau);outline-offset:2px;border-radius:6px}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px 40px}
+
+/* Cabecera */
+header{display:flex;align-items:baseline;justify-content:space-between;padding:18px 2px 10px}
+header h1{margin:0;font:700 22px/1 var(--display);letter-spacing:.01em;color:var(--prau)}
+header .act{font-size:12.5px;color:var(--muted)}
+
+/* El trayecto: es a la vez el título y el formulario */
+.trayecto{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:22px;
+  padding:14px 64px 14px 50px;margin-top:4px}
+
+.extremo{position:relative;display:block;width:100%;text-align:left;background:none;border:0;padding:6px 0;min-height:52px}
+.extremo::before{content:"";position:absolute;z-index:1;left:-32px;top:31px;width:13px;height:13px;border-radius:50%;
+  background:var(--panel);border:3px solid var(--prau)}
+.extremo::after{content:"";position:absolute;left:-27px;width:3px;
+  background:repeating-linear-gradient(var(--prau) 0 8px,transparent 8px 14px)}
+.extremo.origen::after{top:40px;bottom:-1px}
+.extremo.destino::after{top:0;height:36px}
+.extremo.destino::before{background:var(--prau)}
+.extremo small{display:block;font-size:12.5px;color:var(--muted)}
+.extremo b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font:700 28px/1.04 var(--display);letter-spacing:-.005em}
+.extremo b.vacio{color:var(--pasado);font-weight:600}
+.extremo + .extremo{border-top:1px dashed var(--line)}
+.girar{position:absolute;right:12px;top:50%;margin-top:-22px;width:44px;height:44px;border-radius:50%;
+  border:1px solid var(--line);background:var(--bg);display:grid;place-items:center}
+.girar svg{width:20px;height:20px;stroke:var(--prau)}
+.girar:active{transform:rotate(180deg);transition:transform .25s}
+
+/* Días */
+.dias{display:flex;gap:6px;overflow-x:auto;padding:14px 2px 4px;scrollbar-width:none;scroll-snap-type:x proximity}
+.dias::-webkit-scrollbar{display:none}
+.dia{flex:none;scroll-snap-align:start;border:1px solid var(--line);background:var(--panel);border-radius:12px;
+  padding:6px 10px;min-width:58px;text-align:center;line-height:1.1}
+.dia span{display:block;font-size:12px;color:var(--muted)}
+.dia b{font:600 20px/1.1 var(--display)}
+.dia[aria-pressed=true]{background:var(--prau);border-color:var(--prau);color:var(--panel)}
+.dia[aria-pressed=true] span{color:inherit;opacity:.85}
+.dia.otro{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.dia.otro input{position:absolute;opacity:0;pointer-events:none;width:1px}
+
+/* Atajos */
+.atajos{margin-top:18px}
+.atajos h2,.resultados h2{font:600 15px/1.2 var(--body);margin:0 0 8px;color:var(--muted)}
+.atajo{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:12px 14px;margin-bottom:8px}
+.atajo .ruta{flex:1;min-width:0;font:600 19px/1.15 var(--display)}
+.atajo .ruta i{font-style:normal;color:var(--prau);padding:0 4px}
+.atajo .quitar{border:0;background:none;color:var(--pasado);padding:4px 6px;font-size:18px;line-height:1}
+.atajo .estrella{color:var(--faro)}
+
+/* Resultados */
+.resultados{margin-top:18px}
+.cab-res{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px}
+.cab-res h2{margin:0}
+.fav{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--muted)}
+.fav[aria-pressed=true]{color:var(--faro);border-color:var(--faro)}
+.lista{list-style:none;margin:0;padding:0}
+.salida{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:8px;overflow:hidden}
+.salida > button{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 12px;width:100%;
+  background:none;border:0;text-align:left;padding:12px 14px}
+.hora{font:700 30px/1 var(--display);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.tramo{display:flex;align-items:center;gap:8px;min-width:0}
+.tramo .barra{flex:1;height:3px;border-radius:2px;background:var(--line);position:relative}
+.tramo .barra::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p,50%);border-radius:2px;background:var(--prau)}
+.tramo .dur{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.llega{font:600 22px/1 var(--display);font-variant-numeric:tabular-nums;color:var(--muted);text-align:right}
+.llega small{font:500 12px var(--body)}
+.datos{grid-column:1 / -1;display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;color:var(--muted)}
+.chapa{flex:none;font:700 14px/1 var(--display);padding:4px 7px 3px;border-radius:6px;background:var(--mar);color:#fff;letter-spacing:.02em}
+.datos .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.datos .en{margin-left:auto;flex:none;font-weight:600;color:var(--prau)}
+.salida.proxima{border-color:var(--faro);box-shadow:inset 4px 0 0 var(--faro)}
+.salida.proxima .en{color:var(--faro)}
+.salida.pasada .hora,.salida.pasada .llega{color:var(--pasado)}
+.salida.pasada .tramo .barra::after{background:var(--pasado)}
+.anteriores{width:100%;border:1px dashed var(--line);background:none;border-radius:12px;padding:10px;color:var(--muted);font-size:13.5px;margin-bottom:8px}
+
+/* Paradas del viaje, al desplegar */
+.paradas{list-style:none;margin:0;padding:4px 14px 14px 32px;border-top:1px solid var(--line);position:relative}
+.paradas li{display:flex;gap:12px;align-items:baseline;padding:5px 0;position:relative;font-size:14px}
+.paradas li::before{content:"";position:absolute;left:-15px;top:12px;width:7px;height:7px;border-radius:50%;background:var(--line)}
+.paradas li::after{content:"";position:absolute;left:-12px;top:19px;bottom:-12px;width:1px;background:var(--line)}
+.paradas li:last-child::after{display:none}
+.paradas li.tramo-viaje::before{background:var(--prau)}
+.paradas li.tramo-viaje{font-weight:600}
+.paradas li.fuera{color:var(--muted)}
+.paradas time{font:600 16px/1 var(--display);font-variant-numeric:tabular-nums;min-width:42px}
+
+.vacio-res{background:var(--panel);border:1px dashed var(--line);border-radius:16px;padding:20px;text-align:center;color:var(--muted)}
+.vacio-res b{display:block;color:var(--fg);font-size:16px;margin-bottom:4px}
+
+/* Selector de parada */
+.hoja{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) 0 env(safe-area-inset-left,0)}
+.hoja .barra-buscar{display:flex;gap:8px;align-items:center;max-width:560px;width:100%;margin:0 auto;padding:12px 16px 8px}
+.hoja input{flex:1;min-width:0;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:12px 14px;font-size:17px}
+.hoja .cerrar{border:0;background:none;color:var(--prau);font-weight:600;padding:10px 4px}
+.cerca{display:flex;align-items:center;gap:8px;max-width:560px;width:calc(100% - 32px);margin:0 auto 6px;border:0;background:none;color:var(--prau);font-weight:600;padding:8px 2px}
+.cerca svg{width:18px;height:18px}
+.opciones{list-style:none;margin:0 auto;padding:0 16px 30px;max-width:560px;width:100%;overflow-y:auto;flex:1}
+.opciones button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 2px}
+.opciones b{display:block;font-weight:600;font-size:16px}
+.opciones small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opciones mark{background:none;color:var(--prau);font-weight:700}
+
+footer{margin-top:26px;font-size:12.5px;color:var(--muted);line-height:1.5}
+footer p{margin:0 0 6px}
+.aviso{background:var(--faro-soft);border-radius:12px;padding:10px 12px;margin-top:12px;font-size:13.5px}
+.cargando{padding:40px 0;text-align:center;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Autobuses Asturias</h1>
+    <span class="act" id="act"></span>
+  </header>
+
+  <section class="trayecto" aria-label="Trayecto">
+    <button class="extremo origen" id="bOrigen"><small>Desde</small><b class="vacio">Elige parada</b></button>
+    <button class="extremo destino" id="bDestino"><small>Hasta</small><b class="vacio">Cualquier destino</b></button>
+    <button class="girar" id="girar" aria-label="Intercambiar origen y destino">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 4 3 8M7 4l4 4M17 20V4M17 20l-4-4M17 20l4-4"/></svg>
+    </button>
+  </section>
+
+  <div class="dias" id="dias" role="group" aria-label="Día del viaje"></div>
+
+  <div id="aviso"></div>
+  <section class="atajos" id="atajos"></section>
+  <section class="resultados" id="resultados" aria-live="polite"><div class="cargando">Cargando horarios…</div></section>
+
+  <footer>
+    <p>Horarios programados: no hay información de retrasos en tiempo real. Si es importante llegar, confirma con la empresa.</p>
+    <p>Datos abiertos del Punto de Acceso Nacional (Ministerio de Transportes): Consorcio de Transportes de Asturias y ALSA.</p>
+  </footer>
+</div>
+
+<div class="hoja" id="hoja" hidden role="dialog" aria-modal="true" aria-labelledby="hojaTitulo">
+  <div class="barra-buscar">
+    <label for="buscar" id="hojaTitulo" hidden>Buscar parada</label>
+    <input id="buscar" type="search" placeholder="Busca un pueblo o una parada" autocomplete="off" enterkeyhint="search">
+    <button class="cerrar" id="cerrar">Cancelar</button>
+  </div>
+  <button class="cerca" id="cerca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Paradas cerca de mí</button>
+  <button class="cerca" id="cualquiera" hidden>Cualquier destino</button>
+  <ul class="opciones" id="opciones"></ul>
+</div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const DIAS_SEM = ['dom','lun','mar','mié','jue','vie','sáb'];
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+// cada extremo: nombres posibles por orden de preferencia
+const OVI = ['oviedo estacion de autobuses','oviedo estacion','oviedo'], MAD = ['madrid estacion sur','estacion sur','madrid'];
+const ATAJOS_FIJOS = [[OVI, MAD], [MAD, OVI]];
+
+let D = null;               // datos de horarios
+let porParada = [];         // parada -> [[patron, posición], ...]
+let viajesPorPatron = [];   // patron -> [[salida, máscara], ...]
+let lineasParada = [];      // parada -> texto con sus líneas
+let pesoParada = [];        // parada -> nº de viajes (para ordenar búsquedas)
+let claveParada = [];       // nombre normalizado
+let base = null;            // fecha del bit 0
+
+const estado = {origen: null, destino: null, fecha: hoyISO(), abiertos: new Set(), verAnteriores: false};
+
+function hoyISO(){ const d = new Date(); return iso(d); }
+function iso(d){ return d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0'); }
+function deISO(s){ return new Date(+s.slice(0,4), +s.slice(4,6)-1, +s.slice(6,8)); }
+function hhmm(m){ m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); }
+function duracion(m){ const h = Math.floor(m/60), r = m%60; return h ? (r ? `${h} h ${r} min` : `${h} h`) : `${r} min`; }
+function norm(s){ return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const guardar = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const leer = (k,def) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? def; } catch { return def; } };
+
+// ---------- carga ----------
+async function cargar(){
+  try {
+    const r = await fetch('datos/horarios.json', {cache:'no-cache'});
+    if (!r.ok) throw new Error(r.status);
+    D = await r.json();
+  } catch {
+    $('#resultados').innerHTML = '<div class="vacio-res"><b>No se han podido cargar los horarios</b>Comprueba la conexión y vuelve a abrir la app.</div>';
+    return;
+  }
+  base = deISO(D.desde);
+  const n = D.paradas.length;
+  porParada = Array.from({length:n}, () => []);
+  const lineas = Array.from({length:n}, () => new Set());
+  pesoParada = new Array(n).fill(0);
+  viajesPorPatron = D.patrones.map(() => []);
+  D.viajes.forEach(([p, s, m]) => viajesPorPatron[p].push([s, m]));
+  D.patrones.forEach(([l, stops], p) => {
+    const corto = D.lineas[l][0] || D.lineas[l][1];
+    stops.forEach((st, i) => { porParada[st].push([p, i]); lineas[st].add(corto); pesoParada[st] += viajesPorPatron[p].length; });
+  });
+  lineasParada = lineas.map(s => [...s].slice(0, 5).join(', ') + (s.size > 5 ? '…' : ''));
+  claveParada = D.paradas.map(p => norm(p[0]));
+  const g = new Date(D.generado);
+  $('#act').textContent = 'Horarios del ' + g.getDate() + ' ' + MESES[g.getMonth()];
+  if (D.avisos && D.avisos.length) $('#aviso').innerHTML = D.avisos.map(a => `<div class="aviso">${esc(a)} Se muestran los últimos horarios guardados.</div>`).join('');
+  leerEnlace();
+  pintar();
+}
+
+// ---------- paradas por nombre (para enlaces y favoritos) ----------
+function buscarParada(texto){
+  const q = norm(texto); if (!q) return null;
+  let mejor = null, pm = -1;
+  claveParada.forEach((k, i) => {
+    let p = -1;
+    if (k === q) p = 3e6; else if (k.startsWith(q)) p = 2e6; else if (k.includes(q)) p = 1e6;
+    if (p >= 0 && p + pesoParada[i] > pm){ pm = p + pesoParada[i]; mejor = i; }
+  });
+  return mejor;
+}
+function leerEnlace(){
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.has('o')) estado.origen = buscarParada(h.get('o'));
+  if (h.has('d')) estado.destino = buscarParada(h.get('d'));
+  if (h.has('f') && /^\d{8}$/.test(h.get('f'))) estado.fecha = h.get('f');
+}
+function escribirEnlace(){
+  const h = new URLSearchParams();
+  if (estado.origen != null) h.set('o', D.paradas[estado.origen][0]);
+  if (estado.destino != null) h.set('d', D.paradas[estado.destino][0]);
+  if (estado.fecha !== hoyISO()) h.set('f', estado.fecha);
+  history.replaceState(null, '', h.toString() ? '#' + h : location.pathname);
+}
+
+// ---------- cálculo de salidas ----------
+function indiceDia(f){ return Math.round((deISO(f) - base) / 864e5); }
+function activo(m, i){ return i >= 0 && i < 53 && Math.floor(m / 2 ** i) % 2 === 1; }
+
+function salidas(origen, destino, fecha){
+  const i = indiceDia(fecha), res = [];
+  for (const [p, io] of porParada[origen]){
+    const [l, stops, off, letrero] = D.patrones[p];
+    let id = -1;
+    if (destino != null){
+      id = stops.indexOf(destino, io + 1);
+      if (id < 0) continue;
+    } else if (io === stops.length - 1) continue;
+    for (const [s, m] of viajesPorPatron[p]){
+      // viajes del propio día, y los de la víspera que pasan de medianoche
+      for (const [dia, resta] of [[i, 0], [i - 1, 1440]]){
+        if (!activo(m, dia)) continue;
+        const sale = s + off[io] - resta;
+        if (sale < 0 || sale >= 1440) continue;
+        const llega = id >= 0 ? s + off[id] - resta : null;
+        res.push({p, l, s: s - resta, io, id, sale, llega, letrero, stops, off});
+      }
+    }
+  }
+  res.sort((a, b) => a.sale - b.sale || (a.llega ?? 0) - (b.llega ?? 0));
+  // fuera duplicados exactos (mismo horario por dos patrones casi iguales)
+  return res.filter((r, k) => !k || r.sale !== res[k-1].sale || r.llega !== res[k-1].llega || r.l !== res[k-1].l);
+}
+
+// ---------- pintado ----------
+function pintar(){
+  if (!D) return;
+  pintarTrayecto(); pintarDias(); pintarAtajos(); pintarResultados(); escribirEnlace();
+}
+function pintarTrayecto(){
+  const o = estado.origen, d = estado.destino;
+  $('#bOrigen b').textContent = o == null ? 'Elige parada' : D.paradas[o][0];
+  $('#bOrigen b').classList.toggle('vacio', o == null);
+  $('#bDestino b').textContent = d == null ? 'Cualquier destino' : D.paradas[d][0];
+  $('#bDestino b').classList.toggle('vacio', d == null);
+  $('#bOrigen').setAttribute('aria-label', 'Origen: ' + (o == null ? 'sin elegir' : D.paradas[o][0]));
+  $('#bDestino').setAttribute('aria-label', 'Destino: ' + (d == null ? 'cualquiera' : D.paradas[d][0]));
+}
+function pintarDias(){
+  const cont = $('#dias'), hoy = new Date(); hoy.setHours(0,0,0,0);
+  const max = new Date(base); max.setDate(max.getDate() + D.dias - 1);
+  let html = '';
+  for (let k = 0; k < 14; k++){
+    const f = new Date(hoy); f.setDate(f.getDate() + k);
+    if (f > max) break;
+    const etiqueta = k === 0 ? 'hoy' : k === 1 ? 'mañana' : DIAS_SEM[f.getDay()];
+    html += `<button class="dia" data-f="${iso(f)}" aria-pressed="${iso(f) === estado.fecha}"><span>${etiqueta}</span><b>${f.getDate()} ${MESES[f.getMonth()]}</b></button>`;
+  }
+  const fuera = ![...Array(14).keys()].some(k => { const f = new Date(hoy); f.setDate(f.getDate()+k); return iso(f) === estado.fecha; });
+  const fe = deISO(estado.fecha);
+  html += `<label class="dia otro" aria-pressed="${fuera}"><input type="date" id="otraFecha" min="${hoy.toISOString().slice(0,10)}" max="${max.getFullYear()}-${String(max.getMonth()+1).padStart(2,'0')}-${String(max.getDate()).padStart(2,'0')}"><span>${fuera ? `${DIAS_SEM[fe.getDay()]}</span><b>${fe.getDate()} ${MESES[fe.getMonth()]}</b>` : 'Otra fecha</span>'}</label>`;
+  cont.innerHTML = html;
+  cont.querySelectorAll('button.dia').forEach(b => b.onclick = () => { estado.fecha = b.dataset.f; estado.verAnteriores = false; pintar(); });
+  const inp = $('#otraFecha');
+  cont.querySelector('.otro').onclick = () => { try { inp.showPicker(); } catch { inp.focus(); } };
+  inp.onchange = () => { if (inp.value){ estado.fecha = inp.value.replaceAll('-',''); pintar(); } };
+}
+function pintarAtajos(){
+  const cont = $('#atajos');
+  if (estado.origen != null){ cont.hidden = true; return; }
+  cont.hidden = false;
+  const favs = leer('favoritos', []), recientes = leer('recientes', []);
+  const vistos = new Set();
+  const filas = [];
+  const add = (o, d, tipo) => {
+    const k = o + '|' + (d || ''); if (vistos.has(k)) return; vistos.add(k);
+    filas.push({o, d, tipo});
+  };
+  favs.forEach(([o, d]) => add(o, d, 'fav'));
+  recientes.forEach(([o, d]) => add(o, d, 'rec'));
+  const primera = l => { for (const n of l){ const i = buscarParada(n); if (i != null) return i; } return null; };
+  ATAJOS_FIJOS.forEach(([o, d]) => { const io = primera(o), id = primera(d); if (io != null && id != null) add(D.paradas[io][0], D.paradas[id][0], 'fijo'); });
+  if (!filas.length){ cont.innerHTML = ''; return; }
+  cont.innerHTML = '<h2>Trayectos</h2>' + filas.map((f, k) => `
+    <div class="atajo" role="button" tabindex="0" data-k="${k}">
+      <span class="ruta">${esc(f.o)}<i>a</i>${esc(f.d || 'cualquier destino')}</span>
+      ${f.tipo === 'fav' ? '<span class="estrella" aria-label="Favorito">★</span>' : ''}
+      ${f.tipo === 'rec' ? `<button class="quitar" data-q="${k}" aria-label="Quitar de recientes">×</button>` : ''}
+    </div>`).join('');
+  cont.querySelectorAll('.atajo').forEach(el => {
+    const f = filas[el.dataset.k];
+    const ir = () => { estado.origen = buscarParada(f.o); estado.destino = f.d ? buscarParada(f.d) : null; estado.verAnteriores = false; pintar(); window.scrollTo({top:0}); };
+    el.onclick = e => { if (!e.target.closest('.quitar')) ir(); };
+    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); ir(); } };
+  });
+  cont.querySelectorAll('.quitar').forEach(b => b.onclick = e => {
+    e.stopPropagation(); const f = filas[b.dataset.q];
+    guardar('recientes', leer('recientes', []).filter(([o, d]) => !(o === f.o && (d || '') === (f.d || ''))));
+    pintarAtajos();
+  });
+}
+function recordarReciente(){
+  if (estado.origen == null) return;
+  const par = [D.paradas[estado.origen][0], estado.destino == null ? '' : D.paradas[estado.destino][0]];
+  const lista = leer('recientes', []).filter(([o, d]) => !(o === par[0] && (d || '') === par[1]));
+  lista.unshift(par); guardar('recientes', lista.slice(0, 5));
+}
+function esFavorito(){
+  if (estado.origen == null) return false;
+  const o = D.paradas[estado.origen][0], d = estado.destino == null ? '' : D.paradas[estado.destino][0];
+  return leer('favoritos', []).some(([a, b]) => a === o && (b || '') === d);
+}
+function alternarFavorito(){
+  const o = D.paradas[estado.origen][0], d = estado.destino == null ? '' : D.paradas[estado.destino][0];
+  let favs = leer('favoritos', []);
+  favs = esFavorito() ? favs.filter(([a, b]) => !(a === o && (b || '') === d)) : [[o, d], ...favs];
+  guardar('favoritos', favs); pintarResultados();
+}
+
+function pintarResultados(){
+  const cont = $('#resultados');
+  if (estado.origen == null){
+    cont.innerHTML = `<div class="vacio-res"><b>¿Desde dónde sales?</b>Toca «Desde» y escribe un pueblo o una parada. Si no eliges destino, verás todas las salidas.</div>`;
+    return;
+  }
+  const lista = salidas(estado.origen, estado.destino, estado.fecha);
+  const esHoy = estado.fecha === hoyISO();
+  const ahora = new Date(), mAhora = ahora.getHours() * 60 + ahora.getMinutes();
+  const fe = deISO(estado.fecha);
+  const titulo = (esHoy ? 'Hoy' : `${DIAS_SEM[fe.getDay()]} ${fe.getDate()} ${MESES[fe.getMonth()]}`) +
+    ` · ${lista.length} ${lista.length === 1 ? 'salida' : 'salidas'}`;
+  let html = `<div class="cab-res"><h2>${titulo}</h2><button class="fav" id="fav" aria-pressed="${esFavorito()}">${esFavorito() ? '★ En favoritos' : '☆ Guardar trayecto'}</button></div>`;
+  if (!lista.length){
+    const otroSentido = estado.destino != null && salidas(estado.destino, estado.origen, estado.fecha).length;
+    html += `<div class="vacio-res"><b>No hay autobuses ${estado.destino != null ? 'directos ' : ''}este día</b>${
+      estado.destino == null ? 'Prueba otro día.' :
+      otroSentido ? 'Sí los hay en sentido contrario: comprueba que origen y destino no estén al revés.' :
+      'Prueba otro día o una parada cercana: a veces la línea para en otra calle del mismo pueblo.'}</div>`;
+    cont.innerHTML = html; $('#fav').onclick = alternarFavorito; return;
+  }
+  const maxDur = Math.max(...lista.map(r => r.llega != null ? r.llega - r.sale : 0), 1);
+  const pasadas = esHoy ? lista.filter(r => r.sale < mAhora - 1).length : 0;
+  let proxima = esHoy ? pasadas : -1;
+  html += '<ul class="lista">';
+  if (pasadas && !estado.verAnteriores) html += `<li><button class="anteriores" id="verAnt">Ver ${pasadas} ${pasadas === 1 ? 'salida anterior' : 'salidas anteriores'}</button></li>`;
+  lista.forEach((r, k) => {
+    if (k < pasadas && !estado.verAnteriores) return;
+    const [corto, largo, color, texto, operador] = D.lineas[r.l];
+    const fin = D.paradas[r.stops[r.stops.length - 1]][0];
+    const destinoTxt = r.letrero || fin;
+    const id = `${r.p}-${r.s}`;
+    const clases = ['salida', k < pasadas ? 'pasada' : '', k === proxima ? 'proxima' : ''].join(' ');
+    const falta = r.sale - mAhora;
+    const en = esHoy && k >= pasadas && falta <= 90 ? (falta <= 0 ? 'ahora' : `en ${falta} min`) : '';
+    const chapa = corto ? `<span class="chapa" style="${color ? `background:#${color};` : ''}${texto ? `color:#${texto}` : ''}">${esc(corto)}</span>` : '';
+    const llegada = r.llega != null
+      ? `<span class="tramo"><span class="barra" style="--p:${Math.round((r.llega - r.sale) / maxDur * 100)}%"></span><span class="dur">${duracion(r.llega - r.sale)}</span></span>
+         <span class="llega">${hhmm(r.llega)}${r.llega >= 1440 ? '<small> +1</small>' : ''}</span>`
+      : `<span class="tramo"><span class="dur">hacia ${esc(fin)}</span></span><span></span>`;
+    html += `<li class="${clases}"><button aria-expanded="${estado.abiertos.has(id)}" data-id="${id}">
+      <span class="hora">${hhmm(r.sale)}</span>${llegada}
+      <span class="datos">${chapa}<span class="txt">${esc(r.llega != null ? (largo || operador) : destinoTxt)} · ${esc(/^consorcio/i.test(operador) ? 'CTA' : operador)}</span>${en ? `<span class="en">${en}</span>` : ''}</span>
+    </button>${estado.abiertos.has(id) ? paradasViaje(r) : ''}</li>`;
+  });
+  html += '</ul>';
+  cont.innerHTML = html;
+  $('#fav').onclick = alternarFavorito;
+  const va = $('#verAnt'); if (va) va.onclick = () => { estado.verAnteriores = true; pintarResultados(); };
+  cont.querySelectorAll('.salida > button').forEach(b => b.onclick = () => {
+    const id = b.dataset.id; estado.abiertos.has(id) ? estado.abiertos.delete(id) : estado.abiertos.add(id); pintarResultados();
+  });
+}
+function paradasViaje(r){
+  const hasta = r.id >= 0 ? r.id : r.stops.length - 1;
+  return '<ol class="paradas">' + r.stops.map((st, k) => {
+    const cls = k >= r.io && k <= hasta ? 'tramo-viaje' : 'fuera';
+    return `<li class="${cls}"><time>${hhmm(r.s + r.off[k])}</time><span>${esc(D.paradas[st][0])}</span></li>`;
+  }).join('') + '</ol>';
+}
+
+// ---------- selector de parada ----------
+let eligiendo = null;
+function abrirHoja(cual){
+  eligiendo = cual;
+  $('#hoja').hidden = false; $('#buscar').value = '';
+  $('#cualquiera').hidden = cual !== 'destino';
+  $('#buscar').placeholder = cual === 'origen' ? '¿Desde dónde sales?' : '¿A dónde vas?';
+  listarOpciones('');
+  setTimeout(() => $('#buscar').focus(), 50);
+  document.body.style.overflow = 'hidden';
+}
+function cerrarHoja(){ $('#hoja').hidden = true; document.body.style.overflow = ''; }
+function elegir(i){
+  if (eligiendo === 'origen') estado.origen = i; else estado.destino = i;
+  if (estado.origen != null && estado.origen === estado.destino) estado.destino = null;
+  estado.abiertos.clear(); estado.verAnteriores = false;
+  cerrarHoja(); recordarReciente(); pintar();
+}
+function resaltar(nombre, q){
+  if (!q) return esc(nombre);
+  const n = norm(nombre); const i = n.indexOf(q);
+  if (i < 0) return esc(nombre);
+  // la normalización conserva la longitud salvo en signos; aproximamos sobre el original
+  return esc(nombre.slice(0, i)) + '<mark>' + esc(nombre.slice(i, i + q.length)) + '</mark>' + esc(nombre.slice(i + q.length));
+}
+function listarOpciones(texto, cerca){
+  const q = norm(texto);
+  let idx;
+  if (cerca){
+    idx = D.paradas.map((p, i) => [i, (p[1]-cerca[0])**2 + ((p[2]-cerca[1]) * Math.cos(cerca[0]*Math.PI/180))**2])
+      .sort((a, b) => a[1] - b[1]).slice(0, 25).map(x => x[0]);
+  } else if (!q){
+    // sin texto: las paradas con más servicio (estaciones de autobuses, sobre todo)
+    idx = [...D.paradas.keys()].sort((a, b) => pesoParada[b] - pesoParada[a]).slice(0, 20);
+  } else {
+    const palabras = q.split(' ');
+    idx = [];
+    claveParada.forEach((k, i) => {
+      if (!palabras.every(w => k.includes(w))) return;
+      const punt = (k.startsWith(q) ? 3e6 : (' ' + k).includes(' ' + palabras[0]) ? 2e6 : 1e6) + pesoParada[i];
+      idx.push([i, punt]);
+    });
+    idx = idx.sort((a, b) => b[1] - a[1]).slice(0, 60).map(x => x[0]);
+  }
+  const ul = $('#opciones');
+  if (!idx.length){ ul.innerHTML = '<li class="vacio-res" style="margin-top:10px"><b>Ninguna parada coincide</b>Prueba con el nombre del pueblo o de la calle.</li>'; return; }
+  ul.innerHTML = idx.map(i => {
+    const p = D.paradas[i];
+    const dist = cerca ? ' · ' + Math.round(Math.hypot((p[1]-cerca[0]) * 111.3, (p[2]-cerca[1]) * 111.3 * Math.cos(cerca[0]*Math.PI/180)) * 10) / 10 + ' km' : '';
+    return `<li><button data-i="${i}"><b>${resaltar(p[0], q)}</b><small>Líneas ${esc(lineasParada[i] || '—')}${dist}</small></button></li>`;
+  }).join('');
+  ul.querySelectorAll('button').forEach(b => b.onclick = () => elegir(+b.dataset.i));
+}
+
+$('#bOrigen').onclick = () => D && abrirHoja('origen');
+$('#bDestino').onclick = () => D && abrirHoja('destino');
+$('#cerrar').onclick = cerrarHoja;
+$('#cualquiera').onclick = () => elegir(null);
+$('#buscar').oninput = e => listarOpciones(e.target.value);
+$('#buscar').onkeydown = e => { if (e.key === 'Enter'){ const b = $('#opciones button'); if (b) b.click(); } if (e.key === 'Escape') cerrarHoja(); };
+$('#cerca').onclick = () => {
+  if (!navigator.geolocation) return;
+  $('#cerca').lastChild.textContent = 'Buscando tu ubicación…';
+  navigator.geolocation.getCurrentPosition(
+    pos => { $('#cerca').lastChild.textContent = 'Paradas cerca de mí'; listarOpciones('', [pos.coords.latitude, pos.coords.longitude]); },
+    () => { $('#cerca').lastChild.textContent = 'Sin permiso de ubicación'; },
+    {enableHighAccuracy: false, timeout: 10000, maximumAge: 300000});
+};
+$('#girar').onclick = () => {
+  if (estado.origen == null || estado.destino == null) return;
+  [estado.origen, estado.destino] = [estado.destino, estado.origen];
+  estado.abiertos.clear(); estado.verAnteriores = false; recordarReciente(); pintar();
+};
+window.addEventListener('hashchange', () => { if (D){ leerEnlace(); pintar(); } });
+// el "en X min" y la siguiente salida se actualizan solos
+setInterval(() => { if (D && estado.fecha === hoyISO() && $('#hoja').hidden) pintarResultados(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && D) pintar(); });
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+cargar();
+</script>
+</body>
+</html>
