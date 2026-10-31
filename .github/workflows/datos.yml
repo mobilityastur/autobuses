@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # para guardar una copia de los datos en la rama «datos»
   pages: write
   id-token: write
 
@@ -47,6 +47,14 @@ jobs:
 
       - name: Resumen
         run: cat _site/datos/resumen.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar copia de los datos en la rama «datos» (para revisarlos)
+        run: |
+          cd _site/datos
+          git init -q -b datos
+          git add -A
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" commit -q -m "Datos del $(date -u +%F)"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" datos
 
       - uses: actions/upload-pages-artifact@v3
         with:

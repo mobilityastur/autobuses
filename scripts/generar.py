@@ -64,8 +64,20 @@ def bonito(n):
         elif i and p in MENORES:
             partes.append(p)
         else:
-            partes.append("-".join(s[:1].upper() + s[1:] for s in p.split("-")))
-    return " ".join(partes).replace("( ", "(").replace(" )", ")")
+            partes.append("/".join("-".join(s[:1].upper() + s[1:] for s in q.split("-")) for q in p.split("/")))
+    t = " ".join(partes).replace("( ", "(").replace(" )", ")")
+    return re.sub(r"(^|[\s(])c/", r"\1C/", t)
+
+def separar_parada(n):
+    """«[GRAU/GRADO] Valentín Andrés [CTA 04627]» -> («Valentín Andrés», «Grau/Grado»)."""
+    n = re.sub(r"\s*\[[^\]]*\d{3,}[^\]]*\]\s*$", "", n.strip())     # código final con números
+    m = re.match(r"^\[([^\]]+)\]\s*(.*)$", n)
+    if m:
+        return bonito(m.group(2)) or bonito(m.group(1)), bonito(m.group(1))
+    return bonito(n), ""
+
+def sin_sociedad(n):
+    return re.sub(r",?\s+(S\.?\s?A\.?\s?U\.?|S\.?\s?A\.?|S\.?\s?L\.?\s?U?\.?|S\.?\s?COOP\.?)$", "", n.strip(), flags=re.I)
 
 def clave_texto(n):
     n = unicodedata.normalize("NFD", n.lower())
@@ -269,10 +281,10 @@ def main():
     paradas_out = []
     for g in orden:
         miembros = por_grupo[g]
-        nombre = bonito(Counter(n for n, _, _ in miembros).most_common(1)[0][0])
+        nombre, pueblo = separar_parada(Counter(n for n, _, _ in miembros).most_common(1)[0][0])
         lat = sum(m[1] for m in miembros) / len(miembros)
         lon = sum(m[2] for m in miembros) / len(miembros)
-        paradas_out.append([nombre, round(lat, 5), round(lon, 5)])
+        paradas_out.append([nombre, round(lat, 5), round(lon, 5)] + ([pueblo] if pueblo else []))
 
     lineas_out, idx_linea = [], {}
     patrones_out, idx_patron = [], {}
@@ -309,7 +321,7 @@ def main():
         if kl not in idx_linea:
             idx_linea[kl] = len(lineas_out)
             lineas_out.append([bonito(r["corto"]) if len(r["corto"]) > 4 else r["corto"],
-                               bonito(r["largo"]), r["color"], r["texto"], bonito(r["operador"])])
+                               bonito(r["largo"]), r["color"], r["texto"], sin_sociedad(bonito(r["operador"]))])
         kp = (idx_linea[kl], stops, desfases, bonito(v["letrero"]), permisos)
         if kp not in idx_patron:
             idx_patron[kp] = len(patrones_out)
