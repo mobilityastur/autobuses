@@ -73,8 +73,24 @@ def separar_parada(n):
     n = re.sub(r"\s*\[[^\]]*\d{3,}[^\]]*\]\s*$", "", n.strip())     # código final con números
     m = re.match(r"^\[([^\]]+)\]\s*(.*)$", n)
     if m:
-        return bonito(m.group(2)) or bonito(m.group(1)), bonito(m.group(1))
+        pueblo = arreglar_pueblo(m.group(1))
+        nombre = bonito(m.group(2)) or pueblo
+        return nombre, ("" if clave_texto(pueblo) == clave_texto(nombre) else pueblo)
     return bonito(n), ""
+
+ARTICULOS = r"(el|la|los|las|les|lo|l'|a|o|as|os)"
+def arreglar_pueblo(t):
+    """«COVAYES, LES|Cobayas» -> «Les Covayes/Cobayas»; «Couz, el» -> «El Couz»."""
+    partes = []
+    for q in re.split(r"[|/]", t):
+        q = bonito(q.strip().upper() if q.strip().isupper() else q.strip())
+        m = re.match(r"^(.*?),\s*" + ARTICULOS + r"$", q, flags=re.I)
+        if m:
+            art = m.group(2).lower()
+            q = (art[:1].upper() + art[1:]) + ("" if art.endswith("'") else " ") + m.group(1)
+        if q and q not in partes:
+            partes.append(q)
+    return "/".join(partes)
 
 def sin_sociedad(n):
     return re.sub(r",?\s+(S\.?\s?A\.?\s?U\.?|S\.?\s?A\.?|S\.?\s?L\.?\s?U?\.?|S\.?\s?COOP\.?)$", "", n.strip(), flags=re.I)
@@ -220,7 +236,11 @@ def unificar(paradas_usadas):
                     continue
                 nj, laj, loj = paradas_usadas[claves[j]]
                 d = distancia((lai, loi), (laj, loj))
-                if d < 40 or (d < 250 and clave_texto(ni) == clave_texto(nj)):
+                ki, kj = clave_texto(ni), clave_texto(nj)
+                pi, pj = ki.split(), kj.split()
+                # misma parada: casi en el mismo sitio, o cerca y con el mismo nombre
+                # (o con las tres primeras palabras iguales: «Estación Bus Oviedo FL-», «… IL-»)
+                if d < 40 or (d < 250 and ki == kj) or (d < 300 and len(pi) >= 3 and len(pj) >= 3 and pi[:3] == pj[:3]):
                     padre[raiz(i)] = raiz(j)
     return {k: raiz(i) for i, k in enumerate(claves)}
 
@@ -281,7 +301,13 @@ def main():
     paradas_out = []
     for g in orden:
         miembros = por_grupo[g]
-        nombre, pueblo = separar_parada(Counter(n for n, _, _ in miembros).most_common(1)[0][0])
+        # de los nombres del grupo, el más corto; el pueblo, el que venga en alguno
+        separados = [separar_parada(n) for n, _, _ in miembros]
+        nombre = min((x[0] for x in separados), key=lambda x: (len(x), x))
+        pueblos = Counter(x[1] for x in separados if x[1])
+        pueblo = pueblos.most_common(1)[0][0] if pueblos else ""
+        if clave_texto(pueblo) == clave_texto(nombre):
+            pueblo = ""
         lat = sum(m[1] for m in miembros) / len(miembros)
         lon = sum(m[2] for m in miembros) / len(miembros)
         paradas_out.append([nombre, round(lat, 5), round(lon, 5)] + ([pueblo] if pueblo else []))
@@ -320,7 +346,9 @@ def main():
         kl = (r["corto"], r["largo"], r["operador"])
         if kl not in idx_linea:
             idx_linea[kl] = len(lineas_out)
-            lineas_out.append([bonito(r["corto"]) if len(r["corto"]) > 4 else r["corto"],
+            # el Consorcio no tiene número de línea: pone las primeras letras del nombre («Ovi»)
+            corto = "" if r["largo"] and clave_texto(r["largo"]).startswith(clave_texto(r["corto"])) else r["corto"]
+            lineas_out.append([bonito(corto) if len(corto) > 4 else corto,
                                bonito(r["largo"]), r["color"], r["texto"], sin_sociedad(bonito(r["operador"]))])
         kp = (idx_linea[kl], stops, desfases, bonito(v["letrero"]), permisos)
         if kp not in idx_patron:
