@@ -223,6 +223,10 @@ def unificar(paradas_usadas):
             padre[i] = padre[padre[i]]
             i = padre[i]
         return i
+    def firma(n):
+        t = clave_texto(separar_parada(n)[0]).split()
+        return " ".join(t), frozenset(w for w in t if len(w) > 2 or w.isdigit())
+    limpio = [firma(paradas_usadas[k][0]) for k in claves]
     celdas = defaultdict(list)
     for i, k in enumerate(claves):
         _, lat, lon = paradas_usadas[k]
@@ -236,11 +240,10 @@ def unificar(paradas_usadas):
                     continue
                 nj, laj, loj = paradas_usadas[claves[j]]
                 d = distancia((lai, loi), (laj, loj))
-                ki, kj = clave_texto(ni), clave_texto(nj)
-                pi, pj = ki.split(), kj.split()
+                ki, kj = limpio[i], limpio[j]
                 # misma parada: casi en el mismo sitio, o cerca y con el mismo nombre
-                # (o con las tres primeras palabras iguales: «Estación Bus Oviedo FL-», «… IL-»)
-                if d < 40 or (d < 250 and ki == kj) or (d < 300 and len(pi) >= 3 and len(pj) >= 3 and pi[:3] == pj[:3]):
+                # (sin contar siglas cortas: «Estación Bus Oviedo FL- Pepe Cosmen» = «… IL- …»)
+                if d < 60 or (d < 300 and ki[1] and ki[1] == kj[1]):
                     padre[raiz(i)] = raiz(j)
     return {k: raiz(i) for i, k in enumerate(claves)}
 
@@ -303,7 +306,8 @@ def main():
         miembros = por_grupo[g]
         # de los nombres del grupo, el más corto; el pueblo, el que venga en alguno
         separados = [separar_parada(n) for n, _, _ in miembros]
-        nombre = min((x[0] for x in separados), key=lambda x: (len(x), x))
+        # se prefiere el nombre que dice «estación» (las de autobuses vienen con varios nombres)
+        nombre = min((x[0] for x in separados), key=lambda x: ("estacion" not in clave_texto(x), len(x), x))
         pueblos = Counter(x[1] for x in separados if x[1])
         pueblo = pueblos.most_common(1)[0][0] if pueblos else ""
         if clave_texto(pueblo) == clave_texto(nombre):
