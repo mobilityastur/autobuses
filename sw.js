@@ -1,5 +1,5 @@
 // Autobuses Asturias · guarda la app y los horarios para poder consultarlos sin conexión.
-const VERSION = 'autobuses-1.0';
+const VERSION = 'autobuses-1.1';
 const BASICOS = ['./', 'index.html', 'manifest.webmanifest', 'icono-180.png', 'icono-192.png', 'icono-512.png'];
 
 self.addEventListener('install', e => {
