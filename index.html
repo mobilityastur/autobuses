@@ -278,12 +278,15 @@ function activo(m, i){ return i >= 0 && i < 53 && Math.floor(m / 2 ** i) % 2 ===
 function salidas(origen, destino, fecha){
   const i = indiceDia(fecha), res = [];
   for (const [p, io] of porParada[origen]){
-    const [l, stops, off, letrero] = D.patrones[p];
+    const [l, stops, off, letrero, perm] = D.patrones[p];
+    // perm: un dígito por parada, 1 = solo subir, 2 = solo bajar, 3 = ambas (sin perm, todo permitido)
+    const sube = k => !perm || (+perm[k] & 1), baja = k => !perm || (+perm[k] & 2);
+    if (!sube(io)) continue;
     let id = -1;
     if (destino != null){
       id = stops.indexOf(destino, io + 1);
-      if (id < 0) continue;
-    } else if (io === stops.length - 1) continue;
+      if (id < 0 || !baja(id)) continue;
+    } else if (io === stops.length - 1 || (perm && ![...perm.slice(io + 1)].some(c => +c & 2))) continue;
     for (const [s, m] of viajesPorPatron[p]){
       // viajes del propio día, y los de la víspera que pasan de medianoche
       for (const [dia, resta] of [[i, 0], [i - 1, 1440]]){

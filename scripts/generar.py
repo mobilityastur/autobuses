@@ -147,7 +147,9 @@ def leer_feed(clave, z, desde):
             seq = int(r.get("stop_sequence", "0"))
         except ValueError:
             seq = 0
-        v["paradas"].append((seq, r["stop_id"], t))
+        # 1 = se puede subir, 2 = se puede bajar (pickup_type / drop_off_type = 1 lo prohíbe)
+        perm = (0 if r.get("pickup_type") == "1" else 1) | (0 if r.get("drop_off_type") == "1" else 2)
+        v["paradas"].append((seq, r["stop_id"], t, perm))
 
     salida = []
     for tid, v in viajes.items():
@@ -160,7 +162,7 @@ def leer_feed(clave, z, desde):
         for a, b in zip(conocidos, conocidos[1:]):
             for k in range(a + 1, b):
                 horas[k] = round(horas[a] + (horas[b] - horas[a]) * (k - a) / (b - a))
-        ps = [(sid, h) for (_, sid, _), h in zip(ps, horas) if h is not None]
+        ps = [(sid, h, perm) for (_, sid, _, perm), h in zip(ps, horas) if h is not None]
         salida.append({"fuente": clave, "ruta": v["ruta"], "mascara": v["mascara"],
                        "letrero": v["letrero"], "paradas": ps})
     return paradas, rutas, salida
@@ -168,7 +170,7 @@ def leer_feed(clave, z, desde):
 def filtrar_alsa(paradas, viajes, cuenta):
     quedan = []
     for v in viajes:
-        pos = [paradas[s][1:] for s, _ in v["paradas"]]
+        pos = [paradas[s][1:] for s, *_ in v["paradas"]]
         if all(dentro(ASTURIAS, *p) for p in pos):
             quedan.append(v); cuenta["alsa_asturias"] += 1
         elif any(dentro(OVIEDO, *p) for p in pos) and any(dentro(MADRID, *p) for p in pos):
@@ -255,7 +257,7 @@ def main():
     if not todos_viajes:
         sys.exit("No hay ningún horario: no se publica nada nuevo.")
 
-    usadas = {(v["fuente"], s): todas_paradas[(v["fuente"], s)] for v in todos_viajes for s, _ in v["paradas"]}
+    usadas = {(v["fuente"], s): todas_paradas[(v["fuente"], s)] for v in todos_viajes for s, *_ in v["paradas"]}
     grupo = unificar(usadas)
 
     # nombre y posición de cada parada unificada: el nombre más repetido, la media de posiciones
@@ -280,16 +282,21 @@ def main():
         r = todas_rutas[(v["fuente"], v["ruta"])]
         # quitar paradas repetidas seguidas (dos andenes de la misma estación)
         secuencia = []
-        for s, t in v["paradas"]:
+        for s, t, perm in v["paradas"]:
             g = idx_grupo[grupo[(v["fuente"], s)]]
             if secuencia and secuencia[-1][0] == g:
+                secuencia[-1][2] |= perm
                 continue
-            secuencia.append((g, t))
+            secuencia.append([g, t, perm])
         if len(secuencia) < 2:
             continue
         inicio = secuencia[0][1]
-        stops = tuple(g for g, _ in secuencia)
-        desfases = tuple(t - inicio for _, t in secuencia)
+        stops = tuple(g for g, _, _ in secuencia)
+        desfases = tuple(t - inicio for _, t, _ in secuencia)
+        # permisos como texto ("3" = subir y bajar); vacío si todo está permitido
+        permisos = "".join(str(pm) for _, _, pm in secuencia)
+        if set(permisos) == {"3"}:
+            permisos = ""
         clave_dup = (stops[0], stops[-1], inicio, inicio + desfases[-1])
         # solo se descartan duplicados entre fuentes: dentro de una misma fuente, cada viaje cuenta
         previo = vistos.get((clave_dup, "otra"))
@@ -303,10 +310,10 @@ def main():
             idx_linea[kl] = len(lineas_out)
             lineas_out.append([bonito(r["corto"]) if len(r["corto"]) > 4 else r["corto"],
                                bonito(r["largo"]), r["color"], r["texto"], bonito(r["operador"])])
-        kp = (idx_linea[kl], stops, desfases, bonito(v["letrero"]))
+        kp = (idx_linea[kl], stops, desfases, bonito(v["letrero"]), permisos)
         if kp not in idx_patron:
             idx_patron[kp] = len(patrones_out)
-            patrones_out.append([kp[0], list(stops), list(desfases), kp[3]])
+            patrones_out.append([kp[0], list(stops), list(desfases), kp[3]] + ([permisos] if permisos else []))
         viajes_out.append([idx_patron[kp], inicio, v["mascara"]])
 
     viajes_out.sort(key=lambda x: (x[0], x[1]))
