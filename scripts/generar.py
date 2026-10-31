@@ -312,7 +312,9 @@ def main():
         nombre = min((x[0] for x in separados), key=lambda x: ("estacion" not in clave_texto(x), len(x), x))
         pueblos = Counter(x[1] for x in separados if x[1])
         pueblo = pueblos.most_common(1)[0][0] if pueblos else ""
-        if clave_texto(pueblo) == clave_texto(nombre):
+        # sin pueblo si el nombre ya lo dice («Estación Bus Cangas del Narcea»)
+        kn = " " + clave_texto(nombre) + " "
+        if pueblo and any(" " + clave_texto(q) + " " in kn for q in pueblo.split("/") if clave_texto(q)):
             pueblo = ""
         lat = sum(m[1] for m in miembros) / len(miembros)
         lon = sum(m[2] for m in miembros) / len(miembros)
