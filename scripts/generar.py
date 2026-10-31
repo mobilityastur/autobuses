@@ -243,7 +243,9 @@ def unificar(paradas_usadas):
                 ki, kj = limpio[i], limpio[j]
                 # misma parada: casi en el mismo sitio, o cerca y con el mismo nombre
                 # (sin contar siglas cortas: «Estación Bus Oviedo FL- Pepe Cosmen» = «… IL- …»)
-                if d < 60 or (d < 300 and ki[1] and ki[1] == kj[1]):
+                # o muy cerca y un nombre contenido en el otro: «Oviedo» (ALSA) y «Estación Bus Oviedo»
+                if d < 60 or (d < 300 and ki[1] and ki[1] == kj[1]) or \
+                   (d < 150 and ki[1] and kj[1] and (ki[1] <= kj[1] or kj[1] <= ki[1])):
                     padre[raiz(i)] = raiz(j)
     return {k: raiz(i) for i, k in enumerate(claves)}
 
