@@ -1,0 +1,18 @@
+{
+ "generado": "2026-11-07T08:52+01:00",
+ "viajes_por_fuente": {
+  "cta": 20549,
+  "alsa": 64
+ },
+ "detalle": {
+  "alsa_total": 32490,
+  "alsa_descartados_que_pasan_por_asturias": 141,
+  "alsa_oviedo_madrid": 37,
+  "alsa_asturias": 27
+ },
+ "avisos": [],
+ "paradas": 3425,
+ "lineas": 549,
+ "patrones": 3540,
+ "viajes": 20613
+}
